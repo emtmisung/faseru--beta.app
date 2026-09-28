@@ -9,6 +9,7 @@ import re
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date, time as dtime, timedelta
+from pathlib import Path
 from urllib.parse import quote
 
 import folium
@@ -22,7 +23,28 @@ from streamlit_folium import st_folium
 # ----------------------------------------------------------------------------
 # 기본 설정
 # ----------------------------------------------------------------------------
-st.set_page_config(page_title="파세루 베타 (FireSafe Route Beta)", page_icon="🚒", layout="wide")
+APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "paseru_icon_blue.jpg"
+
+
+def load_app_icon_bytes():
+    try:
+        return APP_ICON_PATH.read_bytes()
+    except OSError:
+        return None
+
+
+APP_ICON_BYTES = load_app_icon_bytes()
+APP_ICON_DATA_URI = (
+    "data:image/jpeg;base64," + base64.b64encode(APP_ICON_BYTES).decode("ascii")
+    if APP_ICON_BYTES
+    else ""
+)
+
+st.set_page_config(
+    page_title="파세루 베타 (FireSafe Route Beta)",
+    page_icon=io.BytesIO(APP_ICON_BYTES) if APP_ICON_BYTES else "🚒",
+    layout="wide",
+)
 
 GEOCODE_URL = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode"
 DIRECTIONS_URL = "https://maps.apigw.ntruss.com/map-direction/v1/driving"
@@ -1173,19 +1195,23 @@ def safety_warning(text):
 
 # ---- PWA: 홈 화면에 앱처럼 추가할 수 있도록 매니페스트를 부모 문서에 주입(가능한 환경에서) ----
 components.html(
-    """
+    f"""
 <script>
-try {
+try {{
   const d = window.parent.document;
-  if (d && !d.getElementById('paseru-manifest')) {
-    const manifest = {
+  if (d && !d.getElementById('paseru-manifest')) {{
+    const iconData = {json.dumps(APP_ICON_DATA_URI)};
+    const manifest = {{
       name: "파세루 베타 - 순찰노선 설계기",
       short_name: "파세루 베타",
       description: "AI 기반 소방 순찰노선 최적화 서비스",
       start_url: ".", scope: ".", display: "standalone",
-      background_color: "#f7f8fa", theme_color: "#a33a3f",
-      icons: []
-    };
+      background_color: "#f7f8fa", theme_color: "#086add",
+      icons: iconData ? [
+        {{ src: iconData, sizes: "192x192", type: "image/jpeg", purpose: "any maskable" }},
+        {{ src: iconData, sizes: "512x512", type: "image/jpeg", purpose: "any maskable" }}
+      ] : []
+    }};
     const link = d.createElement('link');
     link.id = 'paseru-manifest';
     link.rel = 'manifest';
@@ -1194,18 +1220,24 @@ try {
     const meta = d.createElement('meta');
     meta.name = 'apple-mobile-web-app-capable'; meta.content = 'yes';
     d.head.appendChild(meta);
+    if (iconData) {{
+      const appleIcon = d.createElement('link');
+      appleIcon.rel = 'apple-touch-icon';
+      appleIcon.href = iconData;
+      d.head.appendChild(appleIcon);
+    }}
     const theme = d.createElement('meta');
-    theme.name = 'theme-color'; theme.content = '#a33a3f';
+    theme.name = 'theme-color'; theme.content = '#086add';
     d.head.appendChild(theme);
-  }
-} catch (e) { /* 환경상 주입이 막히면 조용히 무시 */ }
+  }}
+}} catch (e) {{ /* 환경상 주입이 막히면 조용히 무시 */ }}
 </script>
 """,
     height=0,
 )
 
 st.markdown(
-    """
+    f"""
     <div style="margin:0.2rem 0 1.8rem 0;">
       <div style="margin-bottom:0.38rem;color:#a33a3f;font-size:clamp(1.06rem,2vw,1.2rem);
                   font-weight:650;line-height:1.5;letter-spacing:-0.015em;">
@@ -1213,7 +1245,9 @@ st.markdown(
       </div>
       <div style="display:flex;align-items:baseline;gap:0.65rem;flex-wrap:wrap;
                   color:#17263a;line-height:1.2;letter-spacing:-0.035em;">
-        <span aria-hidden="true" style="font-size:clamp(1.8rem,4vw,2.45rem);">🚒</span>
+        <img src="{APP_ICON_DATA_URI}" alt="파세루 아이콘"
+             style="width:clamp(2.3rem,5vw,3.2rem);height:clamp(2.3rem,5vw,3.2rem);
+                    object-fit:cover;border-radius:14px;box-shadow:0 4px 14px rgba(8,106,221,.18);">
         <span style="font-family:'Noto Serif KR',serif;font-size:clamp(2rem,5vw,3rem);
                      font-weight:700;">파세루 베타</span>
         <span style="color:#667085;font-family:Georgia,serif;font-size:clamp(0.95rem,2vw,1.22rem);
